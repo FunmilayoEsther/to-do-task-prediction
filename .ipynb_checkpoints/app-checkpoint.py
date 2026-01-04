@@ -4,47 +4,44 @@ import pickle
 
 app = Flask(__name__)
 
-# Load model and preprocessor
+# 1. Load model and preprocessor
 with open("logreg_model.pkl", "rb") as f:
     model = pickle.load(f)
 
 with open("preprocessor.pkl", "rb") as f:
     preprocessor = pickle.load(f)
 
-# Ordinal mapping
-ordinal_map = {"low": 1, "medium": 2, "high": 3}
-
-@app.route("/")
-def home():
-    return {"message": "Task Completion Prediction API is running"}
-
+# 2. Predict endpoint
 @app.route("/predict", methods=["POST"])
 def predict():
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        df = pd.DataFrame(data)
 
-    # Convert JSON to DataFrame
-    df = pd.DataFrame(data)
+        # Map ordinal features to numeric
+        ordinal_map = {"low": 1, "medium": 2, "high": 3}
+        for col in ["priority", "dead_urgency", "user_busy_level"]:
+            if col in df.columns:
+                df[col] = df[col].map(ordinal_map)
 
-    # Map ordinal columns
-    for col in ["priority", "dead_urgency", "user_busy_level"]:
-        df[col] = df[col].map(ordinal_map)
+        # Preprocess
+        X = df.copy()
+        if "task_id" in X.columns:
+            X = X.drop("task_id", axis=1)
+        X_processed = preprocessor.transform(X)
 
-    # Drop task_id if present
-    if "task_id" in df.columns:
-        df = df.drop(columns=["task_id"])
+        # Predict
+        y_pred = model.predict(X_processed)
+        y_prob = model.predict_proba(X_processed)[:, 1]
 
-    # Preprocess
-    X_processed = preprocessor.transform(df)
+        # Return results
+        return jsonify({
+            "predictions": y_pred.tolist(),
+            "probabilities": y_prob.round(3).tolist()
+        })
 
-    # Predict
-    preds = model.predict(X_processed)
-    probs = model.predict_proba(X_processed)[:, 1]
-
-    # Return results
-    return jsonify({
-        "predictions": preds.tolist(),
-        "probabilities": probs.tolist()
-    })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5001)

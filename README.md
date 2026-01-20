@@ -144,6 +144,3 @@ docker run -p 5001:5001 task-completion-api
 curl https://to-do-task-prediction.onrender.com/health
 #### Response 
 {"message":"API is running","status":"ok"}
-
-# URL: https://customer-churn-project-07in.onrender.com
-
